@@ -2,77 +2,82 @@
 
 **Keep tabs on your tabs.**
 
-Tab Out replaces your Chrome new tab page with a mission dashboard: it groups your open tabs into named "missions" using AI, so you can see exactly what you're working on — and close what you're not.
+Tab Out replaces your Chrome new tab page with a dashboard that shows everything you have open — grouped by what you're actually doing. Click a button and AI organizes your tabs into named missions, writes you a witty one-liner about your browsing habits, and lets you close entire missions with a satisfying swoosh + confetti.
+
+Built for people who open too many tabs and never close them.
 
 ---
 
 ## Install with a coding agent
 
-Send your coding agent (Claude Code, Cursor, Windsurf, etc.) this repo URL and say "install this":
+Send your coding agent (Claude Code, Cursor, Windsurf, etc.) this repo and say **"install this"**:
 
 ```
 https://github.com/zarazhangrui/tab-out
 ```
 
-The agent will walk you through choosing your LLM provider and setting up your API key.
+The agent will explain what Tab Out does, walk you through choosing an LLM provider, and set everything up. Takes about 2 minutes.
 
 ---
 
-## What it does
+## Features
 
-- **Groups your open tabs into missions** using AI — tabs about the same topic cluster together automatically
-- **Shows them on your new tab page** so every new tab is a reminder of what's actually open
-- **Lets you close tabs** with a satisfying swoosh and confetti when a mission is done
-- **Detects duplicate tabs** so you don't end up with five copies of the same page
-- **Works with any LLM** — DeepSeek (recommended, cheapest), OpenAI, Groq, Together, Ollama (fully local), or any OpenAI-compatible API
-- **Customizable prompts** — teach the AI your personal grouping preferences
-- **Works entirely locally** — your browsing data never leaves your machine; the AI call sends only tab titles and URLs
-
----
-
-## Prerequisites
-
-- **macOS, Windows, or Linux** — auto-start works on all three platforms
-- **Node.js 18+** — [download here](https://nodejs.org)
-- **Google Chrome**
-- **An LLM API key** — we recommend [DeepSeek](https://platform.deepseek.com) (fractions of a cent per call), but any OpenAI-compatible provider works
+- **See all your tabs at a glance** — grouped by domain on a clean grid, no more squinting at 30 tiny tab titles
+- **"Organize with AI"** — one click and your tabs get clustered into named missions like *"Researching Voice AI"* or *"Setting up Stripe billing"*
+- **Witty AI commentary** — the AI writes you a personal one-liner about your tab habits every time you organize
+- **Close tabs with style** — swoosh sound + confetti burst when you clean up a mission. Makes tab hygiene feel rewarding
+- **Duplicate detection** — flags when you have the same page open twice, with one-click cleanup
+- **Click any tab to jump to it** — no new tab opened, just switches to the existing one
+- **Most visited sites** — your top sites from the past week, right on the new tab page
+- **Custom grouping rules** — teach the AI your preferences in plain English
+- **Works with any LLM** — DeepSeek, OpenAI, Grok, Gemini, Claude (via OpenRouter), Kimi, GLM, ByteDance Seed, Minimax, Ollama, or any OpenAI-compatible API
+- **Auto-updates** — get notified when a new version is available, update with one click
+- **100% local** — your browsing data never leaves your machine. Only tab titles and URLs are sent to the AI when you click the button
+- **Always on** — starts automatically when you log in, runs silently in the background
+- **Zero tokens by default** — the new tab page loads instantly with no AI call. Tokens are only used when you click "Organize with AI"
 
 ---
 
-## Quick Setup
+## Manual Setup
 
-**1. Clone the repo**
+If you prefer to set things up yourself instead of using a coding agent:
+
+**1. Clone and install**
 
 ```bash
 git clone https://github.com/zarazhangrui/tab-out.git
 cd tab-out
-```
-
-**2. Install dependencies**
-
-```bash
 npm install
 ```
 
-**3. Run the install script**
+**2. Run the setup script**
 
 ```bash
 npm run install-service
 ```
 
-This creates the data directory, writes a default config file, and installs a platform-specific auto-start service (macOS Launch Agent, Linux systemd user service, or Windows Startup script) so the server runs automatically on login.
+This creates `~/.mission-control/`, writes a default config, and installs an auto-start service for your platform (macOS Launch Agent, Linux systemd, or Windows Startup script).
 
-**4. Add your API key**
+**3. Add your API key**
 
-Open `~/.mission-control/config.json` and add your key:
+Open `~/.mission-control/config.json` and set your LLM provider:
 
 ```json
 {
-  "apiKey": "sk-your-key-here"
+  "apiKey": "your-api-key",
+  "baseUrl": "https://api.deepseek.com",
+  "model": "deepseek-chat"
 }
 ```
 
-That's it for DeepSeek (the default). For other providers, see [Configuration](#configuration) below.
+DeepSeek is the default and cheapest option (fractions of a cent per call). To use a different provider, change `baseUrl` and `model` to match their API. Tab Out works with any OpenAI-compatible API.
+
+**4. Load the Chrome extension**
+
+1. Go to `chrome://extensions` in Chrome
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked**
+4. Select the `extension/` folder from this repo
 
 **5. Start the server**
 
@@ -80,133 +85,79 @@ That's it for DeepSeek (the default). For other providers, see [Configuration](#
 npm start
 ```
 
-(After the Launch Agent is loaded, this happens automatically on login.)
-
-**6. Load the Chrome extension**
-
-1. Open Chrome and go to `chrome://extensions`
-2. Toggle on **Developer mode** (top-right corner)
-3. Click **Load unpacked**
-4. Select the `extension/` folder inside this repo
-
-**7. Open a new tab**
-
-You'll see Tab Out.
+Open a new tab — you'll see Tab Out. The server auto-starts on future logins.
 
 ---
 
-## How it works
+## Custom Grouping Rules
 
-Tab Out has two modes:
+You can teach Tab Out how you like your tabs organized by adding `customPromptRules` to your config file. Write plain English — the AI follows your instructions.
 
-| Mode | What happens |
-|------|-------------|
-| **Static (default)** | Opens instantly. Tabs grouped by domain. No AI call, no cost. |
-| **AI mode** | Click "Organize with AI". Your LLM clusters tabs into named missions with a witty personal message. Results are cached — same tabs = instant load next time. |
+```json
+{
+  "customPromptRules": "Treat all social media as one mission called 'Doom Scrolling'. Group GitHub tabs by repository."
+}
+```
 
-The extension badge on your toolbar shows your current mission count, color-coded (green / amber / red).
+More examples:
+- `"I'm a student. Group tabs by course/subject."`
+- `"Always group Google Docs by project name, not by domain."`
+- `"Each YouTube video should be its own mission."`
 
 ---
 
 ## Configuration
 
-The config file lives at `~/.mission-control/config.json`:
-
-```json
-{
-  "apiKey": "",
-  "baseUrl": "https://api.deepseek.com",
-  "model": "deepseek-chat",
-  "port": 3456,
-  "refreshIntervalMinutes": 30,
-  "batchSize": 200,
-  "historyDays": 7,
-  "customPromptRules": ""
-}
-```
-
-### LLM Provider Settings
+Config lives at `~/.mission-control/config.json`:
 
 | Field | Default | What it does |
 |-------|---------|-------------|
-| `apiKey` | *(empty)* | Your API key (required for cloud providers, optional for Ollama) |
-| `baseUrl` | `https://api.deepseek.com` | Your LLM provider's API endpoint |
-| `model` | `deepseek-chat` | Which model to use |
+| `apiKey` | *(empty)* | Your LLM API key |
+| `baseUrl` | `https://api.deepseek.com` | Your LLM provider's endpoint |
+| `model` | `deepseek-chat` | Which model to use (pick something cheap/fast) |
+| `customPromptRules` | *(empty)* | Your custom tab grouping instructions |
+| `port` | `3456` | Local port for the dashboard |
+| `batchSize` | `200` | How many history entries to process |
+| `historyDays` | `7` | How far back to look for most-visited sites |
 
-Tab Out works with **any OpenAI-compatible API** — just set the `baseUrl` to your provider's endpoint and pick a cheap/fast model (this is classification, not creative writing). DeepSeek, OpenAI, Grok, Kimi, GLM, ByteDance Seed, Minimax, OpenRouter, Ollama, and many others all work.
+---
 
-### Custom Grouping Rules
+## How it works
 
-The `customPromptRules` field lets you teach the AI your personal preferences for how tabs should be grouped. This text is appended to the clustering prompt.
-
-**Examples:**
-
-```json
-{
-  "customPromptRules": "Always group my Google Docs tabs by project name, not by domain."
-}
+```
+You open a new tab
+  → Chrome extension loads Tab Out in an iframe
+  → Dashboard shows your open tabs grouped by domain (instant, free)
+  → You click "Organize with AI"
+  → Dashboard sends tab titles + URLs to your LLM
+  → LLM clusters them into named missions + writes a personal message
+  → Results are cached — same tabs next time = instant load, zero tokens
+  → You close missions you're done with (swoosh + confetti)
+  → Repeat
 ```
 
-```json
-{
-  "customPromptRules": "Treat all social media (X, Reddit, LinkedIn) as one mission called 'Doom Scrolling'. Group GitHub tabs by repository."
-}
-```
-
-```json
-{
-  "customPromptRules": "I'm a student. Group tabs by course/subject. Anything on Canvas or Gradescope is schoolwork."
-}
-```
-
-### Other Settings
-
-| Field | Default | What it does |
-|-------|---------|-------------|
-| `port` | `3456` | Local port for the dashboard server |
-| `refreshIntervalMinutes` | `30` | How often to re-analyze browsing history |
-| `batchSize` | `200` | History entries per analysis batch |
-| `historyDays` | `7` | How far back to look in Chrome history |
+The server runs silently in the background. It starts on login and restarts if it crashes. You never think about it.
 
 ---
 
 ## Tech stack
 
-| Layer | Technology |
-|-------|-----------|
+| What | How |
+|------|-----|
 | Server | Node.js + Express |
-| Database | better-sqlite3 |
-| AI clustering | Any OpenAI-compatible API |
-| Chrome extension | Manifest V3 |
+| Database | better-sqlite3 (local SQLite) |
+| AI | Any OpenAI-compatible API |
+| Extension | Chrome Manifest V3 |
 | Auto-start | macOS Launch Agent / Linux systemd / Windows Startup |
-
----
-
-## Project structure
-
-```
-tab-out/
-├── extension/        # Chrome extension (new tab override)
-│   ├── manifest.json
-│   ├── newtab.html   # iframe shell that loads the dashboard
-│   ├── newtab.js     # postMessage bridge to chrome.tabs API
-│   └── background.js # Service worker for toolbar badge
-├── dashboard/        # Dashboard UI served by Express
-│   ├── index.html
-│   ├── style.css
-│   └── app.js
-├── server/           # Express backend
-│   ├── index.js      # Entry point + scheduler
-│   ├── config.js     # Config loader
-│   ├── db.js         # SQLite database
-│   ├── routes.js     # API endpoints
-│   └── clustering.js # LLM integration
-└── scripts/
-    └── install.js    # One-time setup
-```
+| Sound | Web Audio API (synthesized, no files) |
+| Animations | CSS transitions + JS confetti particles |
 
 ---
 
 ## License
 
 MIT
+
+---
+
+Built by [Zara](https://x.com/zarazhangrui)
