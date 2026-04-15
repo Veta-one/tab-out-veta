@@ -1,120 +1,78 @@
-# Tab Out
+# Tab Out VETA
 
-**Keep tabs on your tabs.**
+> **Fork of [Tab Out](https://github.com/zarazhangrui/tab-out) by Zara Zhang**, heavily extended into a personal dashboard.
 
-Tab Out replaces your Chrome new tab page with a dashboard that shows everything you have open -- grouped by domain, with landing pages (Gmail, X, LinkedIn, etc.) pulled into their own group for easy cleanup. Close tabs with a satisfying swoosh + confetti.
+Pure Chrome/Edge extension (Manifest V3). Your new-tab page, with weather, rates, system metrics, pinned tabs, customisable quick-access shortcuts — 100% local, no server, no accounts.
 
-Built for people who open too many tabs and never close them.
-
----
-
-## Install with a coding agent
-
-Send your coding agent (Claude Code, Cursor, Windsurf, etc.) this repo and say **"install this"**:
-
-```
-https://github.com/zarazhangrui/tab-out
-```
-
-The agent will explain what Tab Out does and set everything up. Takes about 2 minutes.
+![Screenshot](docs/screenshot.png)
 
 ---
 
-## Features
+## 🙏 Credit
 
-- **See all your tabs at a glance** -- grouped by domain on a clean grid, no more squinting at 30 tiny tab titles
-- **Landing pages group** -- homepages and feeds (Gmail, X, LinkedIn, GitHub, YouTube) are pulled into one card so you can close them all at once
-- **Close tabs with style** -- swoosh sound + confetti burst when you clean up a group. Makes tab hygiene feel rewarding
-- **Duplicate detection** -- flags when you have the same page open twice, with one-click cleanup
-- **Click any tab to jump to it** -- switches to the existing tab, even across windows
-- **Save for later** -- bookmark individual tabs to a checklist before closing them
-- **Tab Out dupe detection** -- notices when you have extra new tab pages open and offers to close them
-- **Expandable groups** -- large groups show the first 8 tabs with a clickable "+N more" to reveal the rest
-- **Auto-updates** -- get notified when a new version is available, update with one click
-- **100% local** -- your browsing data never leaves your machine. No AI, no external API calls
-- **Always on** -- starts automatically when you log in, runs silently in the background
+This project started as a fork of **[Tab Out by Zara Zhang](https://github.com/zarazhangrui/tab-out)** — a minimalist "keep tabs on your tabs" Chrome extension. Zara's original idea and base implementation (domain grouping, landing pages group, confetti close animation, Saved for Later checklist, dupe detection) are preserved. All my additions are built on top of that foundation.
+
+Please star and support [the original project](https://github.com/zarazhangrui/tab-out) too — it solves a real problem elegantly and is worth following.
 
 ---
 
-## Manual Setup
+## 🆚 What this fork adds on top of original
 
-If you prefer to set things up yourself instead of using a coding agent:
+| Feature | Original Tab Out | This fork |
+|---------|:----:|:----:|
+| Domain grouping + landing pages | ✅ | ✅ |
+| Close tabs with confetti + swoosh | ✅ | ✅ |
+| Duplicate detection | ✅ | ✅ |
+| Saved for Later checklist | ✅ | ✅ (migrated from SQLite to chrome.storage) |
+| **Quick Access shortcuts** (40+ configurable tiles, drag-drop, edit mode, color/icon picker, import/export) | ❌ | ✅ |
+| **Weather widget** (wttr.in — temp, forecast, sunrise/sunset, moon phase) | ❌ | ✅ |
+| **Currency rates** (USD/EUR/BTC/ETH/SOL/TON via CBR RF + CoinGecko) | ❌ | ✅ |
+| **Air quality (AQI)** via Open-Meteo | ❌ | ✅ |
+| **System metrics** (RAM, Disk, CPU load, CPU/GPU temps, GPU load, VRAM, fan RPM — via Libre Hardware Monitor) | ❌ | ✅ |
+| **HTTP ping** indicators for configurable hosts | ❌ | ✅ |
+| **Speedtest** (Cloudflare) on demand | ❌ | ✅ |
+| **Pinned tabs** (tab stays open but hidden from Open Tabs grid) | ❌ | ✅ |
+| **Themes** (light / dark / auto by sunrise-sunset) + auto-adapt dark brand colors | ❌ | ✅ |
+| **Settings modal** (city picker with autocomplete, currencies, ping hosts, system metric toggles, tile scale, tab title, backup/restore) | ❌ | ✅ |
+| Custom scrollbars matching the theme | ❌ | ✅ |
+| Visibility-aware polling (intervals pause when tab is backgrounded) | ❌ | ✅ |
 
-**1. Clone and install**
+## 🧰 Architecture changes vs original
+
+- **Original** (at the fork point, commit `656f6b3`) had a Node.js + Express server with SQLite, communicated with the new-tab page via a postMessage bridge.
+- **This fork** migrated everything into the pure Chrome extension — no server, no Node, no npm. All state lives in `chrome.storage.local`.
+- After my fork, [Zara also migrated](https://github.com/zarazhangrui/tab-out/commit/9b800f6) to a pure extension architecture — great minds think alike 🙂.
+
+## 📥 Install
 
 ```bash
-git clone https://github.com/zarazhangrui/tab-out.git
-cd tab-out
-npm install
+git clone https://github.com/Veta-one/tab-out-veta.git
 ```
 
-**2. Run the setup script**
+1. Open `edge://extensions` (or `chrome://extensions`)
+2. Enable **Developer mode**
+3. Click **Load unpacked** → select the `extension/` folder
+4. Open a new tab.
 
-```bash
-npm run install-service
-```
+## ⚙️ System metrics (optional)
 
-This creates `~/.mission-control/`, writes a default config, and installs an auto-start service for your platform (macOS Launch Agent, Linux systemd, or Windows Startup script).
+The CPU/GPU temperatures and CPU/GPU load metrics require [**Libre Hardware Monitor**](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases) running with its remote web server enabled on port 8085. Otherwise they simply won't show up.
 
-**3. Load the Chrome extension**
-
-1. Go to `chrome://extensions` in Chrome
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked**
-4. Select the `extension/` folder from this repo
-
-**4. Start the server**
-
-```bash
-npm start
-```
-
-Open a new tab -- you'll see Tab Out. The server auto-starts on future logins.
-
----
-
-## Configuration
-
-Config lives at `~/.mission-control/config.json`:
-
-| Field | Default | What it does |
-|-------|---------|-------------|
-| `port` | `3456` | Local port for the dashboard |
-
----
-
-## How it works
-
-```
-You open a new tab
-  -> Chrome extension loads Tab Out in an iframe
-  -> Dashboard shows your open tabs grouped by domain
-  -> Landing pages (Gmail, X, LinkedIn, etc.) get their own group at the top
-  -> You close groups you're done with (swoosh + confetti)
-  -> Repeat
-```
-
-The server runs silently in the background. It starts on login and restarts if it crashes. You never think about it.
-
----
-
-## Tech stack
+## 📦 Tech stack
 
 | What | How |
 |------|-----|
-| Server | Node.js + Express |
-| Database | better-sqlite3 (local SQLite) |
 | Extension | Chrome Manifest V3 |
-| Auto-start | macOS Launch Agent / Linux systemd / Windows Startup |
-| Sound | Web Audio API (synthesized, no files) |
-| Animations | CSS transitions + JS confetti particles |
+| Storage | `chrome.storage.local` (mirrored in-memory for sync reads) |
+| Fonts | DM Sans + Newsreader (Google Fonts) |
+| Weather icons | [erikflowers/weather-icons](https://github.com/erikflowers/weather-icons) (CDN) |
+| Brand icons | Simple Icons + a handful of custom SVGs |
+| Data sources | wttr.in, Open-Meteo (geocoding, AQI), CBR RF, CoinGecko, Cloudflare speedtest, nager.at (holidays), LHM (system metrics) |
+
+## 📜 License
+
+MIT — same as the original project. Both copyright notices preserved in `LICENSE`. You're free to fork this fork, extend it further, etc.
 
 ---
 
-## License
-
-MIT
-
----
-
-Built by [Zara](https://x.com/zarazhangrui)
+Made by VETA, standing on the shoulders of Zara's work.

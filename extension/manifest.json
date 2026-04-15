@@ -1,22 +1,43 @@
 {
   "manifest_version": 3,
-  "name": "Tab Out",
-  "version": "1.0.0",
-  "description": "Keep tabs on your tabs. New tab page that groups your open tabs by domain and lets you close them with style.",
-  "permissions": ["tabs", "activeTab"],
-  "host_permissions": ["http://localhost:3456/*"],
-  "chrome_url_overrides": { "newtab": "newtab.html" },
+  "name": "Tab Out VETA",
+  "version": "2.0.0",
+  "description": "Personal new tab dashboard with weather, rates, system metrics, pins, and quick access shortcuts.",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage",
+    "unlimitedStorage",
+    "system.cpu",
+    "system.memory",
+    "system.storage"
+  ],
+  "host_permissions": [
+    "http://localhost:8085/*",
+    "https://wttr.in/*",
+    "https://geocoding-api.open-meteo.com/*",
+    "https://air-quality-api.open-meteo.com/*",
+    "https://www.cbr-xml-daily.ru/*",
+    "https://api.coingecko.com/*",
+    "https://speed.cloudflare.com/*",
+    "https://date.nager.at/*",
+    "https://www.google.com/s2/*",
+    "https://cdn.simpleicons.org/*",
+    "https://*/favicon.ico",
+    "https://*/favicon.svg"
+  ],
+  "chrome_url_overrides": { "newtab": "index.html" },
   "background": { "service_worker": "background.js" },
   "action": {
-    "default_title": "Tab Out",
+    "default_title": "Tab Out VETA",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png"
+      "16": "icons-ui/icon16.png",
+      "48": "icons-ui/icon48.png"
     }
   },
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icons-ui/icon16.png",
+    "48": "icons-ui/icon48.png",
+    "128": "icons-ui/icon128.png"
   }
 }

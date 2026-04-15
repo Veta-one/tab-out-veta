@@ -1,87 +1,52 @@
 /**
- * background.js — Service Worker for Badge Updates
+ * background.js — Service Worker for Tab Out VETA
  *
- * This is Chrome's "always-on" background script for the extension. Unlike a
- * normal webpage script, it keeps running even when no tabs are open.
+ * Updates the toolbar badge with the current tab count.
+ * Color:
+ *   ≤ 10 → sage green
+ *   11-25 → amber
+ *   > 25  → rose
  *
- * Its only job is to keep the toolbar badge up to date with the current
- * mission count from the dashboard server. The badge is the little number/text
- * that appears on the extension icon in the Chrome toolbar.
- *
- * Color coding gives the user a quick at-a-glance health signal:
- *   Green  (#3d7a4a) → 1–3 missions  (focused, manageable)
- *   Amber  (#b8892e) → 4–6 missions  (getting busy)
- *   Red    (#b35a5a) → 7+ missions   (overloaded — time to cull!)
+ * No server polling, no external calls — just chrome.tabs events.
  */
 
-// ─── Badge updater ────────────────────────────────────────────────────────────
-
-/**
- * updateBadge — Fetches mission stats from the local server and updates the
- * Chrome toolbar badge to reflect the current total mission count.
- */
 async function updateBadge() {
   try {
-    const res  = await fetch('http://localhost:3456/api/stats');
-    const data = await res.json();
+    const tabs = await chrome.tabs.query({});
+    // Count only real web tabs (exclude chrome://, extension pages, about:, etc.)
+    const realTabs = tabs.filter(t => {
+      const url = t.url || '';
+      return !url.startsWith('chrome://')
+          && !url.startsWith('chrome-extension://')
+          && !url.startsWith('edge://')
+          && !url.startsWith('about:');
+    });
 
-    const count = data.totalMissions ?? 0;
-
-    // Don't show "0" — an empty badge is cleaner when there's nothing to do
+    const count = realTabs.length;
     if (count === 0) {
       chrome.action.setBadgeText({ text: '' });
       return;
     }
 
-    // Set the text (Chrome badge supports short strings; a number works great)
     chrome.action.setBadgeText({ text: String(count) });
 
-    // Pick a color based on workload level
-    let badgeColor;
-    if (count <= 3) {
-      badgeColor = '#3d7a4a'; // Green — you're in control
-    } else if (count <= 6) {
-      badgeColor = '#b8892e'; // Amber — things are piling up
-    } else {
-      badgeColor = '#b35a5a'; // Red — time to focus and close some tabs
-    }
+    let color;
+    if (count <= 10) color = '#3d7a4a';
+    else if (count <= 25) color = '#b8892e';
+    else color = '#b35a5a';
 
-    chrome.action.setBadgeBackgroundColor({ color: badgeColor });
-
+    chrome.action.setBadgeBackgroundColor({ color });
   } catch {
-    // If the server isn't running, clear the badge rather than show stale data
     chrome.action.setBadgeText({ text: '' });
   }
 }
 
-// ─── Event listeners ──────────────────────────────────────────────────────────
+// Update on install, startup, and every tab change
+chrome.runtime.onInstalled.addListener(updateBadge);
+chrome.runtime.onStartup.addListener(updateBadge);
+chrome.tabs.onCreated.addListener(updateBadge);
+chrome.tabs.onRemoved.addListener(updateBadge);
+chrome.tabs.onUpdated.addListener(updateBadge);
 
-// Update the badge immediately when the extension is first installed
-chrome.runtime.onInstalled.addListener(() => {
-  updateBadge();
-});
-
-// Update the badge when Chrome starts up (e.g. after a reboot)
-chrome.runtime.onStartup.addListener(() => {
-  updateBadge();
-});
-
-// Update the badge whenever a new tab is opened — the user might be adding
-// work that should bump the mission count
-chrome.tabs.onCreated.addListener(() => {
-  updateBadge();
-});
-
-// Update the badge whenever a tab is closed — a mission may have been completed
-chrome.tabs.onRemoved.addListener(() => {
-  updateBadge();
-});
-
-// ─── Polling ─────────────────────────────────────────────────────────────────
-
-// Refresh the badge every 60 seconds in case missions are added/edited via
-// the dashboard without any tab events firing (e.g. editing inside the app)
-setInterval(updateBadge, 60 * 1000);
-
-// Also run once immediately when the service worker first loads
+// Initial call when service worker wakes up
 updateBadge();
