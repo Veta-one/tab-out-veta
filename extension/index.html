@@ -86,6 +86,21 @@
         </section>
 
         <section class="settings-section">
+          <h3>Tile appearance (idle)</h3>
+          <div class="settings-slider-row">
+            <label>Background</label>
+            <input type="range" id="idleBgSlider" min="0" max="100" step="1" value="10">
+            <span class="size-display" id="idleBgDisplay">10%</span>
+          </div>
+          <div class="settings-slider-row">
+            <label>Icon &amp; text</label>
+            <input type="range" id="idleIconSlider" min="0" max="100" step="1" value="100">
+            <span class="size-display" id="idleIconDisplay">100%</span>
+          </div>
+          <p class="settings-hint">How visible the tile is when you're not hovering. On hover everything goes to 100%.</p>
+        </section>
+
+        <section class="settings-section">
           <h3>System metrics</h3>
           <div class="settings-metrics" id="settingsMetrics"></div>
           <p class="settings-hint">Temperatures, GPU load, VRAM and Fan RPM require <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases" target="_top">Libre Hardware Monitor</a> running with its remote web server on port 8085.</p>
@@ -204,7 +219,7 @@
       </div>
     </div>
     <div class="last-refresh">
-      <span style="color: var(--muted); font-size: 11px;"><a href="https://github.com/zarazhangrui/tab-out" target="_top" style="color: var(--muted); text-decoration: underline; text-underline-offset: 2px;">Tab Out</a> by <a href="https://x.com/zarazhangrui" target="_top" style="color: var(--muted); text-decoration: underline; text-underline-offset: 2px;">Zara</a></span>
+      <span style="color: var(--muted); font-size: 11px;">Based on <a href="https://github.com/zarazhangrui/tab-out" target="_top" style="color: var(--muted); text-decoration: underline; text-underline-offset: 2px;">Tab Out</a> by <a href="https://x.com/zarazhangrui" target="_top" style="color: var(--muted); text-decoration: underline; text-underline-offset: 2px;">Zara</a> &middot; Extended by <a href="https://t.me/VETA14" target="_top" style="color: var(--muted); text-decoration: underline; text-underline-offset: 2px;">VETA</a></span>
     </div>
   </footer>
 

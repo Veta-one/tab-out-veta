@@ -260,6 +260,12 @@ header {
   transition: all 0.15s;
 }
 
+.st-run svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
 .st-run:hover:not(:disabled) {
   border-color: var(--accent-amber);
   color: var(--accent-amber);
@@ -270,7 +276,8 @@ header {
   cursor: not-allowed;
 }
 
-.st-run.spinning {
+/* Only the SVG inside spins, not the button itself */
+.st-run.spinning svg {
   animation: qa-spin 1s linear infinite;
 }
 
@@ -637,6 +644,28 @@ header {
   gap: 8px;
 }
 
+.settings-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.settings-slider-row label {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 90px;
+  flex-shrink: 0;
+}
+.settings-slider-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent-amber);
+  cursor: pointer;
+}
+.settings-slider-row .size-display {
+  min-width: 44px;
+  text-align: right;
+}
+
 /* Metrics grid (same style as currencies) */
 .settings-metrics {
   display: grid;
@@ -953,6 +982,13 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
+  line-height: 1;
+}
+
+.quick-access-edit-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .quick-access-edit-btn:hover {
@@ -1010,8 +1046,8 @@ header {
   height: calc(65px * var(--qa-scale, 1));
   aspect-ratio: 1 / 1;
   border-radius: calc(9px * var(--qa-scale, 1));
-  /* Ghost fill: brand color at ~10% alpha */
-  background: color-mix(in srgb, var(--qa-brand) 10%, transparent);
+  /* Idle tile background — percentage of brand color mixed with transparent */
+  background: color-mix(in srgb, var(--qa-brand) var(--qa-idle-bg-pct, 10%), transparent);
   text-decoration: none;
   color: var(--qa-brand);
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -1027,6 +1063,14 @@ header {
 
 .qa-tile-content, .qa-tile-label {
   max-width: 100%;
+  opacity: var(--qa-idle-icon-opacity, 1);
+  transition: opacity 0.15s ease;
+}
+
+/* On hover, always show icon & label at full opacity */
+.quick-access-item:hover .qa-tile-content,
+.quick-access-item:hover .qa-tile-label {
+  opacity: 1;
 }
 
 /* Hover: full brand fill, icon/text always white */
@@ -1093,7 +1137,6 @@ header {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: calc(60px * var(--qa-scale, 1));
-  opacity: 0.95;
   margin-top: calc(3px * var(--qa-scale, 1));
 }
 
@@ -1129,10 +1172,10 @@ header {
   display: flex;
 }
 
-/* Edit (settings) button — shown in edit mode, on the left */
+/* Edit (settings) button — shown in edit mode, bottom-left corner */
 .qa-edit-btn {
   position: absolute;
-  top: -6px;
+  bottom: -6px;
   left: -6px;
   width: 16px;
   height: 16px;

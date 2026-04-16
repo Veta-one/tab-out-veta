@@ -42,8 +42,22 @@ async function updateBadge() {
 }
 
 // Update on install, startup, and every tab change
-chrome.runtime.onInstalled.addListener(updateBadge);
-chrome.runtime.onStartup.addListener(updateBadge);
+chrome.runtime.onInstalled.addListener(() => {
+  updateBadge();
+  // First install → no prior uptime. Seed so uptime reading never crashes.
+  chrome.storage.local.get('browser-start-ts', (r) => {
+    if (!r['browser-start-ts']) {
+      chrome.storage.local.set({ 'browser-start-ts': Date.now() });
+    }
+  });
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  updateBadge();
+  // Browser just started — record the moment. Read in app.js to compute uptime.
+  chrome.storage.local.set({ 'browser-start-ts': Date.now() });
+});
+
 chrome.tabs.onCreated.addListener(updateBadge);
 chrome.tabs.onRemoved.addListener(updateBadge);
 chrome.tabs.onUpdated.addListener(updateBadge);

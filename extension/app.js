@@ -213,6 +213,8 @@ const DEFAULT_SETTINGS = {
   },
   currencies: ['USD', 'EUR', 'BTC'],
   tileScale: 1.0,
+  idleBgPct: 10,        // 0–100 — tile background strength when idle
+  idleIconOpacity: 100, // 0–100 — icon+label opacity when idle
   metrics: {
     cpu: true,       // CPU load %
     ram: true,       // RAM used/total
@@ -242,6 +244,15 @@ function applyTileScale(scale) {
   document.documentElement.style.setProperty('--qa-scale', scale);
   const display = document.getElementById('sizeDisplay');
   if (display) display.textContent = Math.round(scale * 100) + '%';
+}
+
+function applyTileIdle(bgPct, iconOpacity) {
+  document.documentElement.style.setProperty('--qa-idle-bg-pct', bgPct + '%');
+  document.documentElement.style.setProperty('--qa-idle-icon-opacity', (iconOpacity / 100).toString());
+  const bgDisp = document.getElementById('idleBgDisplay');
+  if (bgDisp) bgDisp.textContent = bgPct + '%';
+  const opDisp = document.getElementById('idleIconDisplay');
+  if (opDisp) opDisp.textContent = iconOpacity + '%';
 }
 
 let settings = { ...DEFAULT_SETTINGS };
@@ -512,12 +523,11 @@ function renderQuickAccess() {
   }
 
   // Action buttons (edit + add), stacked vertically on the right
-  html += `<div class="quick-access-actions">
-    <button class="quick-access-edit-btn${qaEditMode ? ' active' : ''}" id="qaEditToggle" title="${qaEditMode ? '\u0413\u043e\u0442\u043e\u0432\u043e' : '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c'}">
-      ${qaEditMode ? '\u2713' : '\u270e'}
-    </button>
-    <button class="quick-access-edit-btn" id="qaAddBtn" title="\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u044f\u0440\u043b\u044b\u043a">+</button>
-  </div>`;
+  const editIcon = qaEditMode
+    ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+  const addIcon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+  html += `<div class="quick-access-actions"><button class="quick-access-edit-btn${qaEditMode ? ' active' : ''}" id="qaEditToggle" title="${qaEditMode ? '\u0413\u043e\u0442\u043e\u0432\u043e' : '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c'}">${editIcon}</button><button class="quick-access-edit-btn" id="qaAddBtn" title="\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u044f\u0440\u043b\u044b\u043a">${addIcon}</button></div>`;
 
   container.className = 'quick-access' + (qaEditMode ? ' edit-mode' : '');
   container.innerHTML = html;
@@ -1210,6 +1220,13 @@ function renderSettingsContents() {
   const sizeDisplay = document.getElementById('sizeDisplay');
   if (sizeDisplay) sizeDisplay.textContent = Math.round((settings.tileScale ?? 1) * 100) + '%';
 
+  // Idle tile appearance sliders
+  const bgSlider = document.getElementById('idleBgSlider');
+  const iconSlider = document.getElementById('idleIconSlider');
+  if (bgSlider) bgSlider.value = settings.idleBgPct ?? 10;
+  if (iconSlider) iconSlider.value = settings.idleIconOpacity ?? 100;
+  applyTileIdle(settings.idleBgPct ?? 10, settings.idleIconOpacity ?? 100);
+
   // Metrics checkboxes
   const metricsEl = document.getElementById('settingsMetrics');
   if (metricsEl) {
@@ -1423,6 +1440,28 @@ function initSettingsUI() {
   document.getElementById('sizeReset')?.addEventListener('click', async () => {
     await saveSettings({ tileScale: 1.0 });
     applyTileScale(1.0);
+  });
+
+  // Idle appearance sliders (live preview + debounced save)
+  let idleSaveTimer = null;
+  const debouncedSaveIdle = () => {
+    clearTimeout(idleSaveTimer);
+    idleSaveTimer = setTimeout(() => {
+      saveSettings({
+        idleBgPct: Number(document.getElementById('idleBgSlider').value),
+        idleIconOpacity: Number(document.getElementById('idleIconSlider').value),
+      });
+    }, 250);
+  };
+  document.getElementById('idleBgSlider')?.addEventListener('input', (e) => {
+    const v = Number(e.target.value);
+    applyTileIdle(v, Number(document.getElementById('idleIconSlider').value));
+    debouncedSaveIdle();
+  });
+  document.getElementById('idleIconSlider')?.addEventListener('input', (e) => {
+    const v = Number(e.target.value);
+    applyTileIdle(Number(document.getElementById('idleBgSlider').value), v);
+    debouncedSaveIdle();
   });
 
   // Export
@@ -1662,6 +1701,13 @@ function formatUptime(sec) {
  * Uptime is the extension/browser uptime (there's no OS uptime in extension context).
  */
 async function fetchSystemInfo() {
+  // Browser uptime = since chrome.runtime.onStartup (set in background.js)
+  // Falls back to tab's performance.timeOrigin if we somehow don't have it.
+  const browserStartTs = await Storage.get('browser-start-ts', null);
+  const uptime = browserStartTs
+    ? Math.round((Date.now() - browserStartTs) / 1000)
+    : Math.round((Date.now() - (performance.timeOrigin || Date.now())) / 1000);
+
   const result = {
     cpu: null,         // % CPU load (from LHM)
     gpuLoad: null,     // % GPU load (from LHM)
@@ -1671,7 +1717,7 @@ async function fetchSystemInfo() {
     gpuTemp: null,     // °C
     vramUsed: null, vramTotal: null, // GB VRAM
     fanRpm: null,      // max fan RPM
-    uptime: Math.round((Date.now() - (performance.timeOrigin || Date.now())) / 1000),
+    uptime,
   };
 
   // RAM via chrome.system.memory
@@ -1969,7 +2015,7 @@ async function renderSpeedtest() {
          <span class="st-when">${when}</span>`
       : `<span class="st-when">\u0421\u043a\u043e\u0440\u043e\u0441\u0442\u044c \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442\u0430 \u043d\u0435 \u0437\u0430\u043c\u0435\u0440\u044f\u043b\u0430\u0441\u044c</span>`;
     el.innerHTML = `${display}
-      <button class="st-run" id="speedtestRun" title="\u0417\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u0437\u0430\u043c\u0435\u0440">\u21bb</button>`;
+      <button class="st-run" id="speedtestRun" title="\u0417\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u0437\u0430\u043c\u0435\u0440"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>`;
 
     document.getElementById('speedtestRun').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
@@ -2101,7 +2147,11 @@ async function fetchRates() {
         if (!entry?.usd) continue;
         const value = entry.usd;
         const pct = entry.usd_24h_change;
-        const delta = pct ? Math.round(value * pct / (100 + pct)) : null;
+        const rawDelta = pct ? value * pct / (100 + pct) : null;
+        // Keep 2 decimals for small coins (SOL, TON), round for big ones (BTC)
+        const delta = rawDelta !== null
+          ? (Math.abs(rawDelta) >= 100 ? Math.round(rawDelta) : Math.round(rawDelta * 100) / 100)
+          : null;
         out.push({
           code,
           symbol: CURRENCY_META[code].symbol,
@@ -2130,8 +2180,10 @@ async function renderRates() {
       if (delta === null || delta === undefined || delta === 0) return '';
       const arrow = delta > 0 ? '\u2191' : '\u2193';
       const abs = Math.abs(delta);
-      // If delta is whole number (crypto), no decimals; else 2 decimals
-      const fmt = Math.abs(delta) >= 10 ? Math.round(abs).toLocaleString('en-US') : abs;
+      // Large deltas (BTC $3000+) → no decimals. Small → 2 decimals like fiat.
+      const fmt = abs >= 100
+        ? Math.round(abs).toLocaleString('en-US')
+        : abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       return ` <span class="rate-delta">${arrow}${fmt}</span>`;
     }
 
@@ -2577,9 +2629,16 @@ function checkAndShowEmptyState() {
 function timeAgo(dateStr) {
   if (!dateStr) return '';
 
-  const then = new Date(dateStr);
+  // Handle both ISO strings and numeric timestamps
+  const then = new Date(typeof dateStr === 'number' ? dateStr : dateStr);
+  if (isNaN(then.getTime())) return '';
+
   const now = new Date();
   const diffMs = now - then;
+
+  // Sanity: if diff is negative or unreasonably small, show the date
+  if (diffMs < 0) return then.toLocaleString();
+
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
@@ -2588,7 +2647,9 @@ function timeAgo(dateStr) {
   if (diffMins < 60)  return diffMins + ' min ago';
   if (diffHours < 24) return diffHours + ' hr' + (diffHours !== 1 ? 's' : '') + ' ago';
   if (diffDays === 1) return 'yesterday';
-  return diffDays + ' days ago';
+  if (diffDays < 7)   return diffDays + ' days ago';
+  // Older than a week — show actual date
+  return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 /**
@@ -4069,8 +4130,9 @@ async function fetchMissionById() { return null; }
   // Re-apply theme now that mem.themeMode is populated (initThemeToggle ran before storage loaded)
   applyThemeMode(getThemeMode());
   updateThemeIcon();
-  // Apply persisted tile scale
+  // Apply persisted tile scale + idle appearance
   applyTileScale(settings.tileScale ?? 1.0);
+  applyTileIdle(settings.idleBgPct ?? 10, settings.idleIconOpacity ?? 100);
   // Apply custom tab title
   if (settings.tabTitle) document.title = settings.tabTitle;
   renderDashboard();
