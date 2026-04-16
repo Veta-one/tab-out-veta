@@ -2409,6 +2409,8 @@ async function fetchOpenTabs() {
       windowId: tab.windowId, active: tab.active,
       isTabOut: tab.url === newtabUrl || tab.url === 'chrome://newtab/',
     }));
+    // Re-sync pinned tab IDs (fixes cross-session matching after restart)
+    syncPinnedTabIds();
   } catch { openTabs = []; }
 }
 
@@ -3102,61 +3104,71 @@ function removePinned(url) {
  * pages, about:blank, etc. We only want to show and manage actual websites.
  */
 /**
- * urlMatchesPinned(tabUrl, pinnedUrl)
- * Multi-tier URL matching for pinned tabs. Handles:
- *  - Hash/query drift (gmail/#inbox vs gmail/)
- *  - Sub-navigation (labs.google/fx pinned, /fx/tools/... open)
- *  - Login redirects (justhost.ru/billing → /auth/login)
- *  - Site-level pins (tgstats.vetaone.site/ pinned = hide all pages)
+ * PINNED TAB MATCHING — hybrid tab ID + URL approach.
+ *
+ * In-session:  match by chrome tab ID (exact, handles redirects/sub-nav)
+ * Cross-session: match by origin + pathname (handles browser restart)
+ *
+ * Each pinned entry stores: { url, title, favicon, tabId }
+ * tabId is refreshed on every fetchOpenTabs so it stays current.
  */
+
 function urlMatchesPinned(tabUrl, pinnedUrl) {
   try {
     const t = new URL(tabUrl);
     const p = new URL(pinnedUrl);
-
-    // Different origin (host+port+protocol) → no match
-    // Exception: allow www vs non-www and common domain migrations
-    if (t.origin !== p.origin) {
-      // Try without www
-      const tHost = t.hostname.replace(/^www\./, '');
-      const pHost = p.hostname.replace(/^www\./, '');
-      if (tHost !== pHost || t.port !== p.port) return false;
-    }
-
-    // Tier 1: exact pathname match (ignoring hash + query)
-    if (t.pathname === p.pathname) return true;
-
-    // Tier 2: pinned is a root or short path → match entire site
-    // e.g. pinned "tgstats.vetaone.site/" hides all pages on that site
-    const pPath = p.pathname.replace(/\/$/, '');
-    if (pPath === '' || pPath.split('/').filter(Boolean).length <= 1) return true;
-
-    // Tier 3: open tab is a sub-page of pinned path
-    // e.g. pinned "labs.google/fx" matches "labs.google/fx/tools/flow/..."
-    const tPath = t.pathname;
-    if (tPath.startsWith(pPath + '/') || tPath.startsWith(pPath)) return true;
-
-    // Tier 4: same first path segment (catches login redirects)
-    // e.g. pinned "/owa/auth/..." matches "/owa/#path=/mail"
-    // e.g. pinned "/billing/active" matches "/auth/login?returl=/billing"
-    // Only if pinned path has 2+ segments (avoid matching / to everything)
-    const pSegments = pPath.split('/').filter(Boolean);
-    const tSegments = t.pathname.split('/').filter(Boolean);
-    if (pSegments.length >= 1 && tSegments.length >= 1 && pSegments[0] === tSegments[0]) return true;
-
-    return false;
+    // Strip www for comparison
+    const tHost = t.hostname.replace(/^www\./, '') + (t.port ? ':' + t.port : '');
+    const pHost = p.hostname.replace(/^www\./, '') + (p.port ? ':' + p.port : '');
+    if (tHost !== pHost) return false;
+    // Exact pathname match (ignoring hash + query)
+    return t.pathname === p.pathname;
   } catch {
     return tabUrl === pinnedUrl;
   }
+}
+
+/**
+ * isTabPinned(tab, pinnedList)
+ * tab = { id, url, ... } from openTabs
+ * Returns true if tab matches any pinned entry.
+ * Priority: tab ID match (perfect) > URL match (fallback after restart).
+ */
+function isTabPinned(tab, pinnedList) {
+  return pinnedList.some(p => {
+    // In-session: tab ID match (handles redirects, sub-navigation, session tokens)
+    if (p.tabId && tab.id && p.tabId === tab.id) return true;
+    // Cross-session fallback: URL match by origin + pathname
+    return urlMatchesPinned(tab.url, p.url);
+  });
+}
+
+/**
+ * syncPinnedTabIds()
+ * After fetching open tabs, update pinned entries with current tab IDs.
+ * This "re-syncs" IDs after browser restart: finds the matching open tab
+ * by URL and stores its new ID for future in-session matching.
+ */
+function syncPinnedTabIds() {
+  const pinned = getPinned();
+  let changed = false;
+  for (const p of pinned) {
+    // Find open tab matching this pinned URL
+    const match = openTabs.find(t => urlMatchesPinned(t.url, p.url));
+    if (match && match.id !== p.tabId) {
+      p.tabId = match.id;
+      changed = true;
+    }
+  }
+  if (changed) savePinned(pinned);
 }
 
 function getRealTabs() {
   const pinned = getPinned();
   return openTabs.filter(t => {
     const url = t.url || '';
-    const isPinned = pinned.some(p => urlMatchesPinned(url, p.url));
     return (
-      !isPinned &&
+      !isTabPinned(t, pinned) &&
       !url.startsWith('chrome://') &&
       !url.startsWith('chrome-extension://') &&
       !url.startsWith('about:') &&
@@ -3797,7 +3809,9 @@ document.addEventListener('click', async (e) => {
       favicon = `https://www.google.com/s2/favicons?domain=${d}&sz=16`;
     } catch {}
 
-    addPinned({ url: tabUrl, title: tabTitle, favicon });
+    // Find the actual chrome tab ID for precise in-session matching
+    const matchingTab = openTabs.find(t => t.url === tabUrl);
+    addPinned({ url: tabUrl, title: tabTitle, favicon, tabId: matchingTab?.id || null });
 
     // Animate chip out smoothly + update only affected sections
     const chip = actionEl.closest('.page-chip');
