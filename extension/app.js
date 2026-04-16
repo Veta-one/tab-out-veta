@@ -4241,9 +4241,11 @@ document.addEventListener('visibilitychange', () => {
    data in the background.
    ================================================================ */
 
+// Sections cached in snapshot. Live metrics (systemStats, pingStats, speedtestLine)
+// are excluded — they must always show fresh data, never stale cache.
 const SNAPSHOT_SECTIONS = [
-  'quickAccess', 'headerWeather', 'headerRates', 'systemStats',
-  'pingStats', 'astroLine', 'speedtestLine', 'holidayLine',
+  'quickAccess', 'headerWeather', 'headerRates',
+  'astroLine', 'holidayLine',
 ];
 
 // Inject cached snapshot immediately (runs before bootstrap)
