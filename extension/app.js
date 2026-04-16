@@ -1471,10 +1471,36 @@ function initSettingsUI() {
 
   // Export
   document.getElementById('exportBtn')?.addEventListener('click', async () => {
+    showToast('Exporting...');
     const all = await Storage.getAll();
     const userData = Object.fromEntries(
-      Object.entries(all).filter(([k]) => !k.startsWith('cache:'))
+      Object.entries(all).filter(([k]) =>
+        !k.startsWith('cache:') && k !== 'ui-snapshot' && k !== 'browser-start-ts'
+      )
     );
+
+    // "Fat export": inline all local SVG icons as data URIs so the backup
+    // is fully self-contained and works on a fresh device without the repo.
+    if (userData['tabout-shortcuts'] && Array.isArray(userData['tabout-shortcuts'])) {
+      const inlined = [];
+      for (const s of userData['tabout-shortcuts']) {
+        const entry = { ...s };
+        // If icon is a local file path (icons/xxx.svg), fetch it and convert to data URI
+        if (entry.icon && typeof entry.icon === 'string'
+            && (entry.icon.startsWith('icons/') || entry.icon.startsWith('/icons/'))) {
+          try {
+            const resp = await fetch(entry.icon);
+            if (resp.ok) {
+              const svgText = await resp.text();
+              entry.icon = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgText);
+            }
+          } catch {} // keep original path if fetch fails
+        }
+        inlined.push(entry);
+      }
+      userData['tabout-shortcuts'] = inlined;
+    }
+
     const json = JSON.stringify({
       version: 2,
       exported: new Date().toISOString(),
@@ -1486,7 +1512,7 @@ function initSettingsUI() {
     a.download = `tabout-backup-${new Date().toISOString().slice(0,10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
-    showToast('Exported');
+    showToast('Exported (with icons)');
   });
 
   // Import
