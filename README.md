@@ -34,6 +34,7 @@ Please star and support [the original project](https://github.com/zarazhangrui/t
 | **Pinned tabs** (tab stays open but hidden from Open Tabs grid) | -- | + |
 | **Themes** (light / dark / auto by sunrise-sunset) | -- | + |
 | **Settings modal** (city picker, currencies, ping hosts, metric toggles, tile scale, tile appearance, backup/restore) | -- | + |
+| **Auto-refresh** (tabs update live without page reload) | -- | + |
 | Custom scrollbars, visibility-aware polling | -- | + |
 
 ---
