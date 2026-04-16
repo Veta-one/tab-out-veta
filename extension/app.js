@@ -3103,16 +3103,48 @@ function removePinned(url) {
  */
 /**
  * urlMatchesPinned(tabUrl, pinnedUrl)
- * Flexible URL comparison: matches by origin + pathname, ignoring
- * hash fragments (#inbox, #section) and query params (?session=...).
- * This handles browser restart URL drift where Chrome restores tabs
- * with slightly different URLs than what was originally pinned.
+ * Multi-tier URL matching for pinned tabs. Handles:
+ *  - Hash/query drift (gmail/#inbox vs gmail/)
+ *  - Sub-navigation (labs.google/fx pinned, /fx/tools/... open)
+ *  - Login redirects (justhost.ru/billing → /auth/login)
+ *  - Site-level pins (tgstats.vetaone.site/ pinned = hide all pages)
  */
 function urlMatchesPinned(tabUrl, pinnedUrl) {
   try {
     const t = new URL(tabUrl);
     const p = new URL(pinnedUrl);
-    return t.origin === p.origin && t.pathname === p.pathname;
+
+    // Different origin (host+port+protocol) → no match
+    // Exception: allow www vs non-www and common domain migrations
+    if (t.origin !== p.origin) {
+      // Try without www
+      const tHost = t.hostname.replace(/^www\./, '');
+      const pHost = p.hostname.replace(/^www\./, '');
+      if (tHost !== pHost || t.port !== p.port) return false;
+    }
+
+    // Tier 1: exact pathname match (ignoring hash + query)
+    if (t.pathname === p.pathname) return true;
+
+    // Tier 2: pinned is a root or short path → match entire site
+    // e.g. pinned "tgstats.vetaone.site/" hides all pages on that site
+    const pPath = p.pathname.replace(/\/$/, '');
+    if (pPath === '' || pPath.split('/').filter(Boolean).length <= 1) return true;
+
+    // Tier 3: open tab is a sub-page of pinned path
+    // e.g. pinned "labs.google/fx" matches "labs.google/fx/tools/flow/..."
+    const tPath = t.pathname;
+    if (tPath.startsWith(pPath + '/') || tPath.startsWith(pPath)) return true;
+
+    // Tier 4: same first path segment (catches login redirects)
+    // e.g. pinned "/owa/auth/..." matches "/owa/#path=/mail"
+    // e.g. pinned "/billing/active" matches "/auth/login?returl=/billing"
+    // Only if pinned path has 2+ segments (avoid matching / to everything)
+    const pSegments = pPath.split('/').filter(Boolean);
+    const tSegments = t.pathname.split('/').filter(Boolean);
+    if (pSegments.length >= 1 && tSegments.length >= 1 && pSegments[0] === tSegments[0]) return true;
+
+    return false;
   } catch {
     return tabUrl === pinnedUrl;
   }
