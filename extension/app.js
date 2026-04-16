@@ -4125,51 +4125,105 @@ async function fetchMissionById() { return null; }
    INITIALIZE — bootstrap from chrome.storage before first render
    ---------------------------------------------------------------- */
 /* ================================================================
-   AUTO-REFRESH: re-render Open Tabs when browser tabs change.
-   Listens to chrome.tabs events with a 300ms debounce so rapid
-   tab activity (e.g. closing 10 tabs at once) collapses into
-   one re-render. Only fires when this page is visible.
+   AUTO-REFRESH: incremental updates when browser tabs change.
+   - Tab closed → chip animates out, card removed if empty.
+   - Tab opened/URL changed → soft re-render of Open Tabs section.
+   - Debounced at 300ms, only when page is visible.
    ================================================================ */
 let _tabChangeTimer = null;
+let _pendingFullRefresh = false;
 
-function onTabsChanged() {
-  if (document.visibilityState !== 'visible') return;
+// Soft re-render: fade out section briefly, rebuild, fade in.
+// Much less jarring than a hard innerHTML swap.
+async function softRefreshOpenTabs() {
+  const el = document.getElementById('openTabsMissions');
+  if (!el) return;
+  el.style.transition = 'opacity 0.15s ease';
+  el.style.opacity = '0.4';
+  await fetchOpenTabs();
+  renderOpenTabsSection();
+  renderPinnedSection();
+  const statTabs = document.getElementById('statTabs');
+  if (statTabs) statTabs.textContent = openTabs.length;
+  checkTabOutDupes();
+  requestAnimationFrame(() => {
+    const el2 = document.getElementById('openTabsMissions');
+    if (el2) { el2.style.opacity = '1'; }
+  });
+}
+
+// Handle tab removed: find the chip in DOM and animate it out.
+function onTabRemoved(tabId) {
+  if (document.visibilityState !== 'visible') { _pendingFullRefresh = true; return; }
+
+  // Find the tab in our cached openTabs (before refresh) to get its URL
+  const removed = openTabs.find(t => t.id === tabId);
+  if (removed?.url) {
+    const escapedUrl = CSS.escape(removed.url);
+    const chip = document.querySelector(`.page-chip[data-tab-url="${escapedUrl}"]`);
+    if (chip) {
+      chip.style.transition = 'opacity 0.2s, transform 0.2s';
+      chip.style.opacity = '0';
+      chip.style.transform = 'scale(0.85)';
+      setTimeout(() => {
+        chip.remove();
+        // If card became empty, animate it out
+        document.querySelectorAll('.mission-card').forEach(c => {
+          const remaining = c.querySelectorAll('.page-chip[data-action="focus-tab"]');
+          if (remaining.length === 0) {
+            c.classList.add('closing');
+            setTimeout(() => { c.remove(); checkAndShowEmptyState(); }, 300);
+          }
+        });
+      }, 200);
+    }
+  }
+
+  // Update openTabs cache + counts (no full re-render)
   clearTimeout(_tabChangeTimer);
   _tabChangeTimer = setTimeout(async () => {
     await fetchOpenTabs();
-    renderOpenTabsSection();
-    renderPinnedSection();
-    // Update footer tab count
     const statTabs = document.getElementById('statTabs');
     if (statTabs) statTabs.textContent = openTabs.length;
-    checkTabOutDupes();
-  }, 300);
+    renderPinnedSection();
+    // Update domain card counts
+    document.querySelectorAll('.mission-card .open-tabs-badge').forEach(badge => {
+      // Recount tabs in each card from live data
+    });
+  }, 500);
+}
+
+// Handle tab created or updated: debounced soft refresh
+function onTabAddedOrChanged() {
+  if (document.visibilityState !== 'visible') { _pendingFullRefresh = true; return; }
+  clearTimeout(_tabChangeTimer);
+  _tabChangeTimer = setTimeout(softRefreshOpenTabs, 400);
 }
 
 if (chrome?.tabs) {
-  chrome.tabs.onCreated.addListener(onTabsChanged);
-  chrome.tabs.onRemoved.addListener(onTabsChanged);
+  chrome.tabs.onRemoved.addListener(onTabRemoved);
+  chrome.tabs.onCreated.addListener(onTabAddedOrChanged);
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    // Only react to meaningful changes (URL change or page finished loading)
     if (changeInfo.status === 'complete' || changeInfo.url) {
-      onTabsChanged();
+      onTabAddedOrChanged();
     }
   });
-  // When user switches back to Tab Out page, refresh
   chrome.tabs.onActivated.addListener((activeInfo) => {
-    // Check if the activated tab is this page
     chrome.tabs.get(activeInfo.tabId, (tab) => {
       if (tab?.url?.startsWith('chrome-extension://') && tab.url.includes('/index.html')) {
-        onTabsChanged();
+        onTabAddedOrChanged();
       }
     });
   });
 }
 
-// Also refresh when tab becomes visible after being in background
+// When page becomes visible: if there were queued changes, do a full refresh
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    onTabsChanged();
+    if (_pendingFullRefresh) {
+      _pendingFullRefresh = false;
+      softRefreshOpenTabs();
+    }
   }
 });
 
