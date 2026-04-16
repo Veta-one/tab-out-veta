@@ -4163,6 +4163,7 @@ async function fetchMissionById() { return null; }
    ================================================================ */
 let _tabChangeTimer = null;
 let _pendingFullRefresh = false;
+let _bootstrapDone = false; // guard: don't handle tab events before storage is loaded
 
 // Soft re-render: fade out section briefly, rebuild, fade in.
 // Much less jarring than a hard innerHTML swap.
@@ -4185,6 +4186,7 @@ async function softRefreshOpenTabs() {
 
 // Handle tab removed: find the chip in DOM and animate it out.
 function onTabRemoved(tabId) {
+  if (!_bootstrapDone) return; // storage not loaded yet, skip
   if (document.visibilityState !== 'visible') { _pendingFullRefresh = true; return; }
 
   // Find the tab in our cached openTabs (before refresh) to get its URL
@@ -4226,6 +4228,7 @@ function onTabRemoved(tabId) {
 
 // Handle tab created or updated: debounced soft refresh
 function onTabAddedOrChanged() {
+  if (!_bootstrapDone) return; // storage not loaded yet, skip
   if (document.visibilityState !== 'visible') { _pendingFullRefresh = true; return; }
   clearTimeout(_tabChangeTimer);
   _tabChangeTimer = setTimeout(softRefreshOpenTabs, 400);
@@ -4330,6 +4333,7 @@ injectSnapshot();
   applyTileIdle(settings.idleBgPct ?? 10, settings.idleIconOpacity ?? 100);
   if (settings.tabTitle) document.title = settings.tabTitle;
   renderDashboard();
+  _bootstrapDone = true;
   // Save snapshot after all async renders settle (SVGs, weather, rates, etc.)
   setTimeout(saveSnapshot, 4000);
 })();
