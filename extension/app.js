@@ -540,12 +540,16 @@ function renderQuickAccess() {
 
   document.getElementById('qaAddBtn').addEventListener('click', openAddShortcutsForm);
 
-  // Async: load local SVGs, recolor to target color, inject
-  for (const task of svgLoadTasks) {
+  // Async: load local SVGs, recolor to target color, inject.
+  // After all done, update snapshot so next new-tab load is instant.
+  const svgPromises = svgLoadTasks.map(task =>
     loadColoredSvg(task.url, task.color).then(svg => {
       const el = document.getElementById(task.id);
       if (el && svg) el.innerHTML = svg;
-    });
+    })
+  );
+  if (svgPromises.length) {
+    Promise.all(svgPromises).then(() => setTimeout(saveSnapshot, 200));
   }
 
   // In edit mode: enable dragging, delete buttons, block link navigation
@@ -1128,6 +1132,7 @@ function setThemeMode(mode) {
   applyThemeMode(mode);
   updateThemeIcon();
   if (typeof renderQuickAccess === 'function') renderQuickAccess();
+  setTimeout(saveSnapshot, 1000);
 }
 
 function updateThemeIcon() {
@@ -4227,16 +4232,76 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+/* ================================================================
+   UI SNAPSHOT CACHE — eliminates the "building up" jank on new tabs.
+   After each render, we save the rendered HTML of key sections to
+   chrome.storage. On next page load, we inject the cached HTML
+   INSTANTLY (before any async fetches), so the page appears fully
+   formed from the first frame. Then bootstrap overwrites with fresh
+   data in the background.
+   ================================================================ */
+
+const SNAPSHOT_SECTIONS = [
+  'quickAccess', 'headerWeather', 'headerRates', 'systemStats',
+  'pingStats', 'astroLine', 'speedtestLine', 'holidayLine',
+];
+
+// Inject cached snapshot immediately (runs before bootstrap)
+function injectSnapshot() {
+  if (!chrome?.storage?.local) return;
+  chrome.storage.local.get('ui-snapshot', (r) => {
+    const snap = r?.['ui-snapshot'];
+    if (!snap) return;
+    // Apply cached theme instantly to avoid light-flash
+    if (snap._theme === 'dark') document.documentElement.dataset.theme = 'dark';
+    // Apply cached tile scale + idle appearance
+    if (snap._scale) document.documentElement.style.setProperty('--qa-scale', snap._scale);
+    if (snap._idleBg) document.documentElement.style.setProperty('--qa-idle-bg-pct', snap._idleBg);
+    if (snap._idleIcon) document.documentElement.style.setProperty('--qa-idle-icon-opacity', snap._idleIcon);
+    // Apply cached tab title
+    if (snap._title) document.title = snap._title;
+    // Inject cached HTML into sections
+    for (const id of SNAPSHOT_SECTIONS) {
+      const el = document.getElementById(id);
+      if (el && snap[id]) {
+        if (id === 'quickAccess') el.className = 'quick-access';
+        el.innerHTML = snap[id];
+      }
+    }
+  });
+}
+
+// Save snapshot after everything is rendered (called with delay after bootstrap)
+function saveSnapshot() {
+  if (!chrome?.storage?.local) return;
+  const snap = { _ts: Date.now() };
+  for (const id of SNAPSHOT_SECTIONS) {
+    const el = document.getElementById(id);
+    if (el) snap[id] = el.innerHTML;
+  }
+  snap._theme = getThemeMode() === 'auto'
+    ? (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light')
+    : getThemeMode();
+  snap._scale = (settings.tileScale ?? 1).toString();
+  snap._idleBg = (settings.idleBgPct ?? 10) + '%';
+  snap._idleIcon = ((settings.idleIconOpacity ?? 100) / 100).toString();
+  snap._title = document.title;
+  chrome.storage.local.set({ 'ui-snapshot': snap }).catch(() => {});
+}
+
+// Inject snapshot NOW (before any async work)
+injectSnapshot();
+
 (async function bootstrap() {
   await loadAllStorage();
   await loadSettings();
-  // Re-apply theme now that mem.themeMode is populated (initThemeToggle ran before storage loaded)
+  // Re-apply theme now that mem.themeMode is populated
   applyThemeMode(getThemeMode());
   updateThemeIcon();
-  // Apply persisted tile scale + idle appearance
   applyTileScale(settings.tileScale ?? 1.0);
   applyTileIdle(settings.idleBgPct ?? 10, settings.idleIconOpacity ?? 100);
-  // Apply custom tab title
   if (settings.tabTitle) document.title = settings.tabTitle;
   renderDashboard();
+  // Save snapshot after all async renders settle (SVGs, weather, rates, etc.)
+  setTimeout(saveSnapshot, 4000);
 })();
