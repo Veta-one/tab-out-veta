@@ -3101,12 +3101,30 @@ function removePinned(url) {
  * Returns all open tabs that are real web pages — no chrome://, extension
  * pages, about:blank, etc. We only want to show and manage actual websites.
  */
+/**
+ * urlMatchesPinned(tabUrl, pinnedUrl)
+ * Flexible URL comparison: matches by origin + pathname, ignoring
+ * hash fragments (#inbox, #section) and query params (?session=...).
+ * This handles browser restart URL drift where Chrome restores tabs
+ * with slightly different URLs than what was originally pinned.
+ */
+function urlMatchesPinned(tabUrl, pinnedUrl) {
+  try {
+    const t = new URL(tabUrl);
+    const p = new URL(pinnedUrl);
+    return t.origin === p.origin && t.pathname === p.pathname;
+  } catch {
+    return tabUrl === pinnedUrl;
+  }
+}
+
 function getRealTabs() {
-  const pinnedSet = new Set(getPinned().map(p => p.url));
+  const pinned = getPinned();
   return openTabs.filter(t => {
     const url = t.url || '';
+    const isPinned = pinned.some(p => urlMatchesPinned(url, p.url));
     return (
-      !pinnedSet.has(url) &&
+      !isPinned &&
       !url.startsWith('chrome://') &&
       !url.startsWith('chrome-extension://') &&
       !url.startsWith('about:') &&
@@ -3603,7 +3621,7 @@ function renderPinnedSection() {
 
   listEl.innerHTML = pinned.map(p => {
     // Try to match a currently-open tab for live title/favicon
-    const liveTab = openTabs.find(t => t.url === p.url);
+    const liveTab = openTabs.find(t => urlMatchesPinned(t.url, p.url));
     const title = liveTab?.title || p.title || p.url;
     const favicon = p.favicon || (() => {
       try { return `https://www.google.com/s2/favicons?domain=${new URL(p.url).hostname}&sz=16`; }
