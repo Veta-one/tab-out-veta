@@ -4124,6 +4124,55 @@ async function fetchMissionById() { return null; }
 /* ----------------------------------------------------------------
    INITIALIZE — bootstrap from chrome.storage before first render
    ---------------------------------------------------------------- */
+/* ================================================================
+   AUTO-REFRESH: re-render Open Tabs when browser tabs change.
+   Listens to chrome.tabs events with a 300ms debounce so rapid
+   tab activity (e.g. closing 10 tabs at once) collapses into
+   one re-render. Only fires when this page is visible.
+   ================================================================ */
+let _tabChangeTimer = null;
+
+function onTabsChanged() {
+  if (document.visibilityState !== 'visible') return;
+  clearTimeout(_tabChangeTimer);
+  _tabChangeTimer = setTimeout(async () => {
+    await fetchOpenTabs();
+    renderOpenTabsSection();
+    renderPinnedSection();
+    // Update footer tab count
+    const statTabs = document.getElementById('statTabs');
+    if (statTabs) statTabs.textContent = openTabs.length;
+    checkTabOutDupes();
+  }, 300);
+}
+
+if (chrome?.tabs) {
+  chrome.tabs.onCreated.addListener(onTabsChanged);
+  chrome.tabs.onRemoved.addListener(onTabsChanged);
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    // Only react to meaningful changes (URL change or page finished loading)
+    if (changeInfo.status === 'complete' || changeInfo.url) {
+      onTabsChanged();
+    }
+  });
+  // When user switches back to Tab Out page, refresh
+  chrome.tabs.onActivated.addListener((activeInfo) => {
+    // Check if the activated tab is this page
+    chrome.tabs.get(activeInfo.tabId, (tab) => {
+      if (tab?.url?.startsWith('chrome-extension://') && tab.url.includes('/index.html')) {
+        onTabsChanged();
+      }
+    });
+  });
+}
+
+// Also refresh when tab becomes visible after being in background
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    onTabsChanged();
+  }
+});
+
 (async function bootstrap() {
   await loadAllStorage();
   await loadSettings();
