@@ -215,6 +215,7 @@ const DEFAULT_SETTINGS = {
   tileScale: 1.0,
   idleBgPct: 10,        // 0–100 — tile background strength when idle
   idleIconOpacity: 100, // 0–100 — icon+label opacity when idle
+  autoCloseDupes: true, // close other Tab Out tabs on new-tab open
   metrics: {
     cpu: true,       // CPU load %
     ram: true,       // RAM used/total
@@ -1221,6 +1222,10 @@ function renderSettingsContents() {
   const titleInput = document.getElementById('tabTitleInput');
   if (titleInput) titleInput.value = settings.tabTitle ?? 'Tab Out';
 
+  // Auto-close dupes checkbox
+  const dupCheckbox = document.getElementById('autoCloseDupesCheckbox');
+  if (dupCheckbox) dupCheckbox.checked = settings.autoCloseDupes !== false;
+
   // Tile size display
   const sizeDisplay = document.getElementById('sizeDisplay');
   if (sizeDisplay) sizeDisplay.textContent = Math.round((settings.tileScale ?? 1) * 100) + '%';
@@ -1422,6 +1427,11 @@ function initSettingsUI() {
       saveTimer = setTimeout(() => saveSettings({ tabTitle: v }), 300);
     });
   }
+
+  // Auto-close dupes toggle
+  document.getElementById('autoCloseDupesCheckbox')?.addEventListener('change', async (e) => {
+    await saveSettings({ autoCloseDupes: e.target.checked });
+  });
 
   // Add ping host
   document.getElementById('addPingBtn')?.addEventListener('click', () => {
@@ -4400,4 +4410,20 @@ injectSnapshot();
   _bootstrapDone = true;
   // Save snapshot after all async renders settle (SVGs, weather, rates, etc.)
   setTimeout(saveSnapshot, 4000);
+
+  // Auto-close other Tab Out tabs so they don't accumulate
+  if (settings.autoCloseDupes !== false) {
+    // Small delay so the current page is stable before closing others
+    setTimeout(async () => {
+      try {
+        const result = await handleCloseTabOutDupes();
+        if (result?.closedCount > 0) {
+          await fetchOpenTabs();
+          // Hide the "extra tabs" banner if it was shown
+          const banner = document.getElementById('tabOutDupeBanner');
+          if (banner) banner.style.display = 'none';
+        }
+      } catch {}
+    }, 1500);
+  }
 })();
