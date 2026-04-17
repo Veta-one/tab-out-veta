@@ -2387,18 +2387,23 @@ async function handleCloseDuplicates(urls = [], keepOne = true) {
 }
 
 async function handleCloseTabOutDupes() {
-  const allTabs = await chrome.tabs.query({});
   const extId = chrome.runtime.id;
-  const newtabUrl = `chrome-extension://${extId}/index.html`;
-  const tabOutTabs = allTabs.filter(t => t.url === newtabUrl || t.url === 'chrome://newtab/');
+  const selfUrl = `chrome-extension://${extId}/index.html`;
+  const allTabs = await chrome.tabs.query({});
+  const tabOutTabs = allTabs.filter(t =>
+    t.url === selfUrl
+    || t.url === 'chrome://newtab/'
+    || t.url === 'edge://newtab/'
+    || t.url?.startsWith(`chrome-extension://${extId}/`)
+  );
   if (tabOutTabs.length <= 1) return { success: true, closedCount: 0 };
 
-  const currentWindow = await chrome.windows.getCurrent();
-  // Keep the active tab in the focused window — that's the one user is looking at
-  const keep = tabOutTabs.find(t => t.active && t.windowId === currentWindow.id)
-             || tabOutTabs.find(t => t.active)
-             || tabOutTabs[0];
-  const toClose = tabOutTabs.filter(t => t.id !== keep.id).map(t => t.id);
+  // Keep THIS tab (use chrome.tabs.getCurrent for reliable self-identification)
+  const selfTab = await new Promise(res => chrome.tabs.getCurrent(t => res(t)));
+  const keepId = selfTab?.id
+                || tabOutTabs.find(t => t.active)?.id
+                || tabOutTabs[0].id;
+  const toClose = tabOutTabs.filter(t => t.id !== keepId).map(t => t.id);
   if (toClose.length) await chrome.tabs.remove(toClose);
   return { success: true, closedCount: toClose.length };
 }
@@ -4413,17 +4418,32 @@ injectSnapshot();
 
   // Auto-close other Tab Out tabs so they don't accumulate
   if (settings.autoCloseDupes !== false) {
-    // Small delay so the current page is stable before closing others
     setTimeout(async () => {
       try {
-        const result = await handleCloseTabOutDupes();
-        if (result?.closedCount > 0) {
+        // Get THIS tab's ID — most reliable way to identify ourselves
+        const selfTab = await new Promise(res => chrome.tabs.getCurrent(t => res(t)));
+        if (!selfTab?.id) return;
+
+        const extId = chrome.runtime.id;
+        const selfUrl = `chrome-extension://${extId}/index.html`;
+        const allTabs = await chrome.tabs.query({});
+        const otherTabOutTabs = allTabs.filter(t =>
+          t.id !== selfTab.id &&
+          (t.url === selfUrl
+           || t.url === 'chrome://newtab/'
+           || t.url === 'edge://newtab/'
+           || t.url?.startsWith(`chrome-extension://${extId}/`))
+        );
+
+        if (otherTabOutTabs.length > 0) {
+          await chrome.tabs.remove(otherTabOutTabs.map(t => t.id));
           await fetchOpenTabs();
-          // Hide the "extra tabs" banner if it was shown
           const banner = document.getElementById('tabOutDupeBanner');
           if (banner) banner.style.display = 'none';
         }
-      } catch {}
+      } catch (e) {
+        console.warn('[tab-out] auto-close dupes failed:', e);
+      }
     }, 1500);
   }
 })();
