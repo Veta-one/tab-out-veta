@@ -3,3 +3,9 @@ node_modules/
 *.db
 .DS_Store
 docs/superpowers/
+
+# Личные файлы (бэкап настроек, отладочные логи)
+Download backup.json
+Text Document.txt
+# Claude Code workspace
+.claude/
